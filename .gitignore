@@ -1,0 +1,11 @@
+# Ignore dataset
+article_data/
+article_results/
+graphs/
+results/
+server_out/
+measurements_reorganizzation.sh
+
+# Ignore testings
+notebook/
+tests/
