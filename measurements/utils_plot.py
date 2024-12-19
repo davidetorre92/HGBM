@@ -6,6 +6,7 @@ import pandas as pd
 import copy
 import powerlaw
 import os
+import seaborn as sns
 
 def stochastic_block_model(**kwargs):
     settings_path = kwargs['settings_path']
@@ -29,7 +30,30 @@ def stochastic_block_model(**kwargs):
     return g_sbm
 
 def label_constructor(options):
-    return '\n'.join(f'{key.capitalize()}: {value}' if key != 'beta' else r'$\beta$' + f' = {value}' for key, value in options.items())
+    string_list = []
+    for key, value in options.items():
+        if key == 'beta':
+            string_list.append(r'$\beta$' + f' = {value}')
+        elif key == 'D':
+            string_list.append(f'D = {value}') 
+        elif key == 'Diagonal':
+            if value == 'Strong':
+                value = '3 / 1'
+                string_list.append(f'K ratio = {value}')
+            elif value == 'Very strong':
+                value = '6 / 1'
+                string_list.append(f'K ratio = {value}')
+            elif value == 'Weak':
+                value = '1.2 / 1'
+                string_list.append(f'K ratio = {value}')
+            else:
+                pass
+        elif key == 'diagonal':
+            pass
+        else:
+            string_list.append(f'{key.capitalize()}: {value}')
+        
+    return '\n'.join(string_list)
 
 def area_plot(x, y, std, avg = None, ax = None, label = None):
     if ax is None:
@@ -195,8 +219,6 @@ def plot_annd_data(ensamble_path, original_annd, options, ax = None):
     scatter = None
     for row_id, ensamble_measurement in df.iterrows():
         if scatter is None:
-            print(ensamble_measurement)
-            exit()
             scatter = ax.scatter(original_annd, ensamble_measurement['average_neighbor_degree'], label = label_string, alpha=0.05)
             markerfacecolor = scatter.get_facecolor()[0]
         else:
@@ -213,11 +235,11 @@ def plot_knn_from_ensambles_distribution(ensamble_path, options, ax = None):
         fig = ax.get_figure()
 
     # Iterate over the ensambles
-    uniq_deg = np.unique(np.concatenate([np.array(row['degrees'], dtype = int) for row_id, row in df.iterrows()]))
+    uniq_deg = np.unique(np.concatenate([np.array(row['degrees'][~np.isnan(row['degrees'])], dtype = int) for _, row in df.iterrows()]))
     data = {deg: [] for deg in uniq_deg}
     for row_id, row in df.iterrows():
         # Collect measured degree of the ensamble
-        degrees = np.array([int(deg) for deg in row['degrees']])
+        degrees = np.array([int(deg) for deg in row['degrees'][~np.isnan(row['degrees'])]])
         # ... and their annd
         annd = row['average_neighbor_degree']
         uniq_deg = np.unique(degrees)
@@ -237,6 +259,7 @@ def plot_knn_from_ensambles_distribution(ensamble_path, options, ax = None):
         x.append(deg)
         y.append(np.mean(values))
         std.append(np.std(values))
+    
 
     x = np.array(x)
     y = np.array(y)
@@ -390,20 +413,21 @@ def plot_reconstructed_matrix(G, simulation_df, output_directory, verbose = True
         print(f"K plot saved to: {image_path}")
     return
 
-def plot_reconstructed_matrix_v2(G, simulation_df, output_directory, verbose = True, file_name = 'mixing_matrix_real_vs_reconstructed.pdf'):
+def plot_reconstructed_matrix_v2(G, simulation_df, output_directory, verbose = True, file_name = 'mixing_matrix_real_vs_reconstructed.pdf', flat = True, width = 0.02):
     # Prepare plot
-    fig, ax = plt.subplots(figsize = (14, 9))
+    fig, ax = plt.subplots(figsize = (16, 9))
     # discard first color
     if G is not None:
         ax.set_prop_cycle(color = plt.rcParams['axes.prop_cycle'].by_key()['color'][1:])
-    
     rows = []
+    label_order = []
     for id, experiment_row in simulation_df[simulation_df['measure'] == 'K'].iterrows():
         # Measure ground truth mixing matrix, K_real
         parameters = np.load(experiment_row['options_path'], allow_pickle = True).item()
-        delta = 2 * parameters['delta'] / np.sum(parameters['delta'])
+        delta = np.round(2 * parameters['delta'] / np.sum(parameters['delta']), 3)
         df_path = experiment_row['path_to_measure']
         df = pd.read_pickle(df_path)
+        label_order.append(label_constructor(experiment_row['parameters']))
         for id, ensamble_row in df.iterrows():
             K = np.array(ensamble_row['K'])
             delta_rec = K / np.sum(K) * 2
@@ -411,17 +435,24 @@ def plot_reconstructed_matrix_v2(G, simulation_df, output_directory, verbose = T
                 rows.append([real, rec, label_constructor(experiment_row['parameters'])])
     plot_df = pd.DataFrame(rows, columns = ['real values', 'reconstructed values', 'label'])
     plot_df.sort_values('real values', ascending = True, inplace = True)
-    x_to_n_labels = {x: len(plot_df[plot_df['real values'] == x]['label'].unique().tolist()) for x in plot_df['real values'].unique().tolist()}
-    width = 0.01
-    offsets_counter = {x: - x_to_n_labels[x] / 2 * width / 2 for x in plot_df['real values'].unique().tolist()}
-    for label in plot_df['label'].unique():
+    data_to_n_labels = {x: len(plot_df[plot_df['real values'] == x]['label'].unique().tolist()) for x in plot_df['real values'].unique().tolist()}
+    if flat:
+        data_to_x = {x: n * width * 2 * max(data_to_n_labels.values()) for n, x in enumerate(plot_df['real values'].unique().tolist())}
+        offsets = {x: (- data_to_n_labels[x] // 2) * width / 2 for x in plot_df['real values'].unique().tolist()}
+        offsets_increment = width
+    else:
+        data_to_x = {x: x for x in plot_df['real values'].unique().tolist()}
+        offsets = {x: 0 for x in plot_df['real values'].unique().tolist()}
+        offsets_increment = 0
+    for label in label_order:
         data_avg = plot_df[plot_df['label'] == label].drop('label', axis = 1).groupby('real values').mean()
         data_std = plot_df[plot_df['label'] == label].drop('label', axis = 1).groupby('real values').std()
         X_data = np.array(data_avg.index)
-        X_plot = []
+        X_plot = [] # The array containing the x position of each bar
         for x in X_data:
-            X_plot.append(x + offsets_counter[x])
-            offsets_counter[x] = offsets_counter[x] + width
+            x_plot = data_to_x[x]
+            X_plot.append(x_plot + offsets[x])
+            offsets[x] = offsets[x] + offsets_increment
         y = data_avg['reconstructed values']
         y_std = data_std['reconstructed values']
         bars = ax.bar(X_plot, 2 * y_std, bottom = y - y_std, width=width, alpha = 0.5)
@@ -430,8 +461,18 @@ def plot_reconstructed_matrix_v2(G, simulation_df, output_directory, verbose = T
 
     ax.grid()
     X = plot_df['real values'].unique().tolist()
-    ax.scatter(X, X, marker='o', color = 'black', label = 'Input data', zorder=10)
+    if flat:
+        ax.errorbar([data_to_x[x] for x in X], X, xerr = [data_to_n_labels[x] * width / 2 for x in X], linestyle = 'none', marker='none', color = 'black', label = 'Input data', zorder=10)
+    else:
+        ax.scatter([data_to_x[x] for x in X], X, marker='o', s=16, color = 'black', label = 'Input data', zorder=10)
+
     ax.legend(loc = 'upper left', bbox_to_anchor = (1.0, 1.05))
+    if flat:
+        ax.set_xticks([data_to_x[x] for x in X])
+        ax.set_xticklabels([f'{x:.4f}' for x in X], rotation = 45)
+    ax.set_xlabel(r'Input values')
+    ax.set_ylabel(r'Reconstructed values')
+    ax.set_title(r'Reconstruction of the mixing matrix $\Delta$')
     fig.tight_layout()
     image_path = os.path.join(output_directory, file_name)
     fig.savefig(image_path)
@@ -439,9 +480,42 @@ def plot_reconstructed_matrix_v2(G, simulation_df, output_directory, verbose = T
         print(f"K plot saved to: {image_path}")
     return
 
+def plot_reconstructed_matrix_extended(G, simulation_df, output_directory, verbose = True, file_name = 'mixing_matrix_real_vs_reconstructed.pdf', flat = True, width = 0.02):
+    # Prepare plot
+    fig, ax = plt.subplots(figsize = (16, 9))
+    # discard first color
+    if G is not None:
+        ax.set_prop_cycle(color = plt.rcParams['axes.prop_cycle'].by_key()['color'][1:])
+    rows = []
+    label_order = []
+    for id, experiment_row in simulation_df[simulation_df['measure'] == 'K'].iterrows():
+        # Measure ground truth mixing matrix, K_real
+        parameters = np.load(experiment_row['options_path'], allow_pickle = True).item()
+        delta = np.round(2 * parameters['delta'] / np.sum(parameters['delta']), 3)
+        df_path = experiment_row['path_to_measure']
+        df = pd.read_pickle(df_path)
+        label_order.append(label_constructor(experiment_row['parameters']))
+        upper_triangle_indices = np.triu_indices(delta.shape[0])
+        for id, ensamble_row in df.iterrows():
+            K = np.array(ensamble_row['K'])
+            delta_rec = K / np.sum(K) * 2
+            for i_row, i_col in zip(upper_triangle_indices[0], upper_triangle_indices[1]):
+                real = delta[i_row, i_col]
+                rec = delta_rec[i_row, i_col]
+                rows.append([real, rec, i_row, i_col, id, label_constructor(experiment_row['parameters'])])
+    plot_df = pd.DataFrame(rows, columns = ['real values', 'reconstructed values', 'i_row', 'i_col', 'id', 'label'])
+    print(plot_df)
+    sns.scatterplot(data = plot_df, x = 'real values', y = 'reconstructed values', hue = 'label', ax = ax, palette = 'bright')
+    # ax.scatter(plot_df['real values'], plot_df['reconstructed values'], label = plot_df['label'],alpha = 0.5)
+    fig.savefig(os.path.join(output_directory, file_name))
+    if verbose:
+        print(f"K plot saved to: {os.path.join(output_directory, file_name)}")
+    return
+
+
 def plot_k_err(G, simulation_df, output_directory, verbose = True, file_name = 'K_error_plot.pdf'):
     # Prepare plot
-    fig, ax = plt.subplots(figsize = (14, 9))
+    fig, ax = plt.subplots(figsize = (16, 9))
     X = []
     y_diag = []
     y_outdiag = []
@@ -482,15 +556,25 @@ def plot_k_err(G, simulation_df, output_directory, verbose = True, file_name = '
         y_outdiag.append(np.mean(outdiag_data))
         y_diag_err.append(np.std(diag_data))
         y_outdiag_err.append(np.std(outdiag_data))
-    
         X.append(label_constructor(options_metadata))
 
-    error_bar_container = ax.errorbar(X, y_diag, yerr = y_diag_err, linestyle='none', marker = 'o', label = 'Diagonal')
-    ax.scatter(X, y_diag_true, marker = 'x', label = 'Diagonal true', color = error_bar_container.lines[0].get_color())
-    error_bar_container = ax.errorbar(X, y_outdiag, yerr = y_outdiag_err, linestyle='none', marker = 'o', label = 'Outdiagonal')
-    ax.scatter(X, y_outdiag_true, marker = 'x', label = 'Outdiagonal true', color = error_bar_container.lines[0].get_color())
+    ms_value = 10
+    marker_true_value = 'd'
+    ms_true_value = 200
+    error_bar_container = ax.errorbar(X, y_diag, yerr = y_diag_err, linestyle='none', marker = 'o', label = 'Diagonal', ms = ms_value, alpha = 0.75)
+    ax.scatter(X, y_diag_true, marker = marker_true_value, label = 'Diagonal true', color = error_bar_container.lines[0].get_color(), s = ms_true_value, alpha = 0.75)
+    error_bar_container = ax.errorbar(X, y_outdiag, yerr = y_outdiag_err, linestyle='none', marker = 'o', label = 'Outdiagonal', ms = ms_value, alpha = 0.75)
+    ax.scatter(X, y_outdiag_true, marker = marker_true_value, label = 'Outdiagonal true', color = error_bar_container.lines[0].get_color(), s = ms_true_value, alpha = 0.75)
+    ax.set_xlabel('Randomization options')
+    ax.set_ylabel('Average edge counts')
+    ax.grid(axis = 'y')
     ax.legend(loc = 'upper left', bbox_to_anchor=(1.05, 1.0))
-    fig.suptitle('Comparison of Diagonal and Off-Diagonal Edge Counts')
+    X_tick_pos = ax.get_xticks()
+    for i, x in enumerate(X_tick_pos):
+        if i % 2 == 0:
+            ax.axvspan(x - 0.5, x + 0.5, color = 'lightgrey', alpha = 0.5, zorder = -1)
+    ax.tick_params(axis='x', rotation=45)
+    fig.suptitle('Edge counts comparison')
     fig.tight_layout()
     image_path = os.path.join(output_directory, file_name)
     fig.savefig(image_path)
@@ -502,13 +586,13 @@ def plot_k(G, simulation_df, output_directory, verbose = True, file_name = 'K.pd
     max_cols = 2
     n_exp = simulation_df[simulation_df['measure'] == 'K'].shape[0]
     n_cols = n_exp if n_exp < max_cols else max_cols
-    col_space = 1
-    row_space = 1
     n_rows = n_exp // max_cols
     if n_exp % max_cols != 0:
         n_rows += 1
 
     fig, axs = plt.subplots(n_rows, n_cols, figsize = (7 * n_cols, 7 * n_rows), layout = 'constrained', sharex=True, sharey=True)
+    if not isinstance(axs, np.ndarray):
+        axs = np.array([axs])
     i_plot = 0
     for id, experiment_row in simulation_df[simulation_df['measure'] == 'K'].iterrows():
         # Measure ground truth mixing matrix, K_real
@@ -525,11 +609,9 @@ def plot_k(G, simulation_df, output_directory, verbose = True, file_name = 'K.pd
         # Plot
         df_path = experiment_row['path_to_measure']
         options_metadata = experiment_row['parameters']
-        # row_id = (i_plot // max_cols) * row_space
-        # col_id = (i_plot % max_cols) * col_space
         communities_names_ordered = sorted(communities_names)
         label_order = {i: communities_names_ordered.index(communities_names[i]) for i in range(len(communities_names))}
-        _, ax = plot_K_ensamble(df_path, K_real, options_metadata, ax = axs.flat[i_plot], label_order = label_order, text_fontsize = 12)
+        _, ax = plot_K_ensamble(df_path, K_real, options_metadata, ax = axs.flat[i_plot], label_order = label_order, text_fontsize = 18)
         i_plot = i_plot + 1
 
         ax.set_xticks(np.arange(len(communities_names_ordered)), labels=communities_names_ordered, rotation = 45, ha = 'right')
@@ -545,7 +627,7 @@ def plot_k(G, simulation_df, output_directory, verbose = True, file_name = 'K.pd
     cbar = fig.axes[-1]
     cbar.set_label('Relative error')
 
-    fig.suptitle('Relative error of K matrix')
+    fig.suptitle('K matrix errors')
     image_path = os.path.join(output_directory, file_name)
     fig.savefig(image_path)
     if verbose:
@@ -633,13 +715,13 @@ def plot_triangles(G, simulation_df, output_directory, file_name = 'triangles.pn
     if verbose:
         print(f"Triangles plot saved to: {image_path}")
     
-def plot_and(G, simulation_df, output_directory, file_name = 'annd.png', verbose = False):
+def plot_annd(G, simulation_df, output_directory, file_name = 'annd.png', verbose = False):
     fig, ax = plt.subplots(figsize = (14, 9))
     scatter_data = []
     original_annd = G.knn()[0]
     # discard first color
     ax.set_prop_cycle(color = plt.rcParams['axes.prop_cycle'].by_key()['color'][1:])
-    for id, experiment_row in simulation_df[simulation_df['measure'] == 'ANND'].iterrows():
+    for id, experiment_row in simulation_df[simulation_df['measure'] == 'Average Neighbor Degree'].iterrows():
         df_path = experiment_row['path_to_measure']
         options = experiment_row['parameters']
         scatter_data.append(plot_annd_data(df_path, original_annd, options = options, ax = ax))

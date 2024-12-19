@@ -55,20 +55,21 @@ if __name__ == "__main__":
         options = options_loader(option_path, **options_metadata_loader_kwargs)
         param_metadata = '_'.join([f'{key}_{val}' for key, val in options_metadata.items()])
         if verbose: print(f"Working on {param_id + 1} / {len(ensamble_parameters_paths)} simulations: {options_metadata}")                
-        # # Global measures
-        # simulation_df = measure_and_save(simulation_df, get_global_df, options_metadata, ensamble_paths, param_metadata, output_directory, option_path, 'Global', {'verbose': verbose, 'n_ensamble': len(ensamble_paths)})
-        # # Clustering 
-        # simulation_df = measure_and_save(simulation_df, get_clustering_df, options_metadata, ensamble_paths, param_metadata, output_directory, option_path, 'Clustering', {'verbose': verbose, 'n_ensamble': len(ensamble_paths)})
+        # Check integritiy
+        ensamble_paths_working, ensamble_paths_not_working = integrity_check(ensamble_paths, verbose = verbose)
+        if len(ensamble_paths_not_working) != 0:
+            if verbose: print("The following ensamble paths are not working", ensamble_paths_not_working)
+        ensamble_paths_working = ensamble_paths
         # Samplings 
-        # simulation_df = measure_and_save(simulation_df, get_samplings_df, options_metadata, ensamble_paths, param_metadata, output_directory, option_path, 'Samplings', {'verbose': verbose, 'n_ensamble': len(ensamble_paths)})
+        simulation_df = measure_and_save(simulation_df, get_samplings_df, options_metadata, ensamble_paths_working, param_metadata, output_directory, option_path, 'Samplings', {'verbose': verbose, 'n_ensamble': len(ensamble_paths)})
         # Degree data
-        # simulation_df = measure_and_save(simulation_df, get_degree_df, options_metadata, ensamble_paths, param_metadata, output_directory, option_path, 'Degree')
-        # # Triangles
-        # simulation_df = measure_and_save(simulation_df, get_triangles_df, options_metadata, ensamble_paths, param_metadata, output_directory, option_path, 'Triangles')
-        # # ANND
-        # simulation_df = measure_and_save(simulation_df, get_average_neighbor_degree_df, options_metadata, ensamble_paths, param_metadata, output_directory, option_path, 'Average Neighbor Degree')
+        simulation_df = measure_and_save(simulation_df, get_degree_df, options_metadata, ensamble_paths_working, param_metadata, output_directory, option_path, 'Degree')
+        # Triangles
+        simulation_df = measure_and_save(simulation_df, get_triangles_df, options_metadata, ensamble_paths_working, param_metadata, output_directory, option_path, 'Triangles')
+        # ANND
+        simulation_df = measure_and_save(simulation_df, get_average_neighbor_degree_df, options_metadata, ensamble_paths_working, param_metadata, output_directory, option_path, 'Average Neighbor Degree')
         # K
-        simulation_df = measure_and_save(simulation_df, get_K_df, options_metadata, ensamble_paths, param_metadata, output_directory, option_path, 'K', get_df_kwargs = {'communities': options['communities'], 'communities_names': options['communities_names']})
+        simulation_df = measure_and_save(simulation_df, get_K_df, options_metadata, ensamble_paths_working, param_metadata, output_directory, option_path, 'K', get_df_kwargs = {'communities': options['communities'], 'communities_names': options['communities_names']})
 
     simulation_df = pd.DataFrame(simulation_df)
     simulation_df.to_pickle(simulation_df_path)

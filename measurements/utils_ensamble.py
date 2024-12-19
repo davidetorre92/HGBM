@@ -3,6 +3,7 @@ import pandas as pd
 import igraph as ig
 from multiprocessing import Pool
 import os
+import re
 
 ensamble_id_format_spec = '02d'
 
@@ -36,7 +37,24 @@ def load_upper_triangle(ensamble_path):
 
     # Since the matrix is symmetrical, copy the upper triangle to the lower triangle
     reconstructed_matrix = reconstructed_matrix + reconstructed_matrix.T - np.diag(np.diag(reconstructed_matrix))
+    if np.isnan(reconstructed_matrix).any(): # Hand very tiny values
+        reconstructed_matrix[np.isnan(reconstructed_matrix)] = 0
+
     return reconstructed_matrix
+
+def integrity_check(ensamble_paths, verbose = False):
+    ensamble_paths_working = []
+    ensamble_paths_not_working = []
+    for i_path, ensamble_path in enumerate(ensamble_paths):
+        if verbose:
+            print(f'\tChecking ensamble integrity... {i_path + 1} / {len(ensamble_paths)}', end='\r')
+        data = np.load(ensamble_path)
+        if np.unique(data).shape[0] > 1:
+            ensamble_paths_working.append(ensamble_path)
+        else:
+            ensamble_paths_not_working.append(ensamble_path)
+    if verbose: print()
+    return ensamble_paths_working, ensamble_paths_not_working
 
 def measure_K_sim(p_ij, communities, communities_names, verbose = False):
     if len(p_ij.shape) > 2: # There are multiple simulations
@@ -228,6 +246,7 @@ def get_samplings_df(ensamble_paths, **data_kwargs):
                      'clustering_coefficients_avg': [], 'clustering_coefficients_std': []}
     for ensamble_id, ensamble_path in enumerate(ensamble_paths):
         data_kwargs['i_ensamble'] = ensamble_id
+        data_kwargs['n_ensamble'] = len(ensamble_paths)
         degree_data, local_clustering_coefficient_data, assortativity_measures, giant_component, clustering_coefficients = get_samplings_data(ensamble_path, **data_kwargs)
         degrees = np.unique(degree_data)
         avg_local_clustering_coefficient = np.array([np.mean(local_clustering_coefficient_data[degree_data == degree]) for degree in degrees])
@@ -272,7 +291,6 @@ def get_samplings_data(ensamble_path, n_samples = 100, **data_kwargs):
     assortativity_measures = np.array([res[2] for res in results])
     giant_component = np.array([res[3] for res in results])
     clustering_coefficients = np.array([res[4] for res in results])
-
     return degree_data, local_clustering_coefficient_data, assortativity_measures, giant_component, clustering_coefficients
 
 def process_sample(args):
@@ -301,6 +319,11 @@ def get_K_df(ensamble_paths, **kwargs):
 
 def measure_and_save(simulation_df, get_df, options, ensamble_paths, param_metadata, output_dir, option_path, data_str, get_df_kwargs = {}):
     df = get_df(ensamble_paths, **get_df_kwargs)
+    # remove from param_metadata non alphanumeric characters and numbers
+    param_metadata = re.sub(r'[^0-9a-zA-Z]+', '_', param_metadata)
+    # make it lower case
+    param_metadata = param_metadata.lower()
+    # make it a path
     df_path = f"{output_dir}/{'_'.join(data_str.lower().split(' '))}_{param_metadata}.pickle"
     df.to_pickle(df_path)
     print(f"{data_str} data saved on {df_path}")

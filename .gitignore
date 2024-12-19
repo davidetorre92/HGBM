@@ -9,3 +9,6 @@ measurements_reorganizzation.sh
 # Ignore testings
 notebook/
 tests/
+
+# Ignore venv
+venv/

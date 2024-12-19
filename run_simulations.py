@@ -16,7 +16,7 @@ def is_line_in_file(file_path, line_to_check):
                 return True
     return False
 
-# Parameter rangesq
+# Parameter ranges
 N_values = [5000]
 C_values = [4]
 diagonal_modes = ['Strong', 'Weak']

@@ -6,12 +6,12 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
 plt.rcParams.update({
-    "font.size": 18,
-    "axes.labelsize": 18,
-    "xtick.labelsize": 18,
-    "ytick.labelsize": 18,
-    "legend.fontsize": 18,
-    "figure.titlesize": 18
+    "font.size": 25,
+    "axes.labelsize": 25,
+    "xtick.labelsize": 20,
+    "ytick.labelsize": 20,
+    "legend.fontsize": 20,
+    "figure.titlesize": 30
 })
 def load_config(config_path):
     spec = importlib.util.spec_from_file_location("config", config_path)
@@ -76,15 +76,16 @@ if __name__ == "__main__":
     if verbose:
         print("------- Plot starts here -------")
 
-    # plot_reconstructed_matrix(G, simulation_df, output_directory, verbose = True)
-    plot_reconstructed_matrix_v2(G, simulation_df, output_directory, verbose = True)
+    # plot_reconstructed_matrix_extended(G, simulation_df, output_directory, verbose = True, file_name = 'mixing_matrix_real_vs_reconstructed.pdf', flat = True, width = 0.02)
+
+    plot_reconstructed_matrix_v2(G, simulation_df, output_directory, verbose = True, flat = True)
     plot_k_err(G, simulation_df, output_directory, verbose = verbose)
     plot_k(G, simulation_df, output_directory, verbose = verbose)    
     plot_degree(G, simulation_df, output_directory, g_bm = g_bm, benchmark_label_string = benchmark_label_string, verbose = verbose)
     plot_clustering(G, simulation_df, output_directory, g_bm = g_bm, benchmark_label_string = benchmark_label_string, verbose = verbose)
     if G is not None:
         plot_triangles(G, simulation_df, output_directory, verbose = verbose)    
-        plot_and(G, simulation_df, output_directory, verbose = verbose)
+        plot_annd(G, simulation_df, output_directory, verbose = verbose)
 
     plot_knn(G, simulation_df, output_directory, verbose = verbose)
     plot_global_metrics(G, simulation_df, output_directory, verbose = verbose)

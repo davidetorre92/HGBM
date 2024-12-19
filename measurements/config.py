@@ -16,11 +16,6 @@ def get_hgbm_options_randomizer(options_path):
     return_dict = {'beta': options['beta']}
     return return_dict
 
-def get_dmerc_options(options_path):
-    options = np.load(options_path, allow_pickle=True).item()
-    return_dict = {'D': options['dim']}
-    return return_dict
-
 def get_hgbm_options_synthetic_article(options_path):
     options = np.load(options_path, allow_pickle=True).item()
     return_dict = {'beta': options['beta']}
@@ -36,23 +31,14 @@ def get_hgbm_parameters(options_path):
     options = np.load(options_path, allow_pickle=True).item()
     return options
 
-def get_dmerc_parameters(options_path):
-    options = np.load(options_path, allow_pickle=True).item()
-    return options
-
 # Settings
 ensamble_id_format_spec = '02d'
-output_directory = '/home/davide/AI/Projects/HGBM/article_data/d-mercator'
-output_directory_plot = '/home/davide/AI/Projects/HGBM/article_results/d-mercator'
+output_directory = '/home/davide/AI/Projects/HGBM/article_results/git_tests'
 simulation_df_path = f'{output_directory}/simulation_df.pickle'
 ensamble_parameters_paths = [
-    ('/home/davide/AI/Projects/HGBM/article_data/d-mercator','/home/davide/AI/Projects/HGBM/article_data/dmerc_out/input_file.npy'),
+    ('/home/davide/AI/Projects/HGBM/article_results/test_git/', '/home/davide/AI/Projects/HGBM/article_results/test_git/input.npy')
 ]
-# Measures
 ensamble_paths_loader = get_hgbm_ensamble
-options_metadata_loader = get_dmerc_options
-options_loader = get_dmerc_parameters
+options_metadata_loader = get_hgbm_options_synthetic_article
+options_loader = get_hgbm_parameters
 verbose = True
-original_graph_path = '/home/davide/AI/Projects/HGBM/graphs/hgbm_strong_diagonal.graphml'
-g_benchmark_function = None
-g_benchmark_kwargs = {'settings_path': ensamble_parameters_paths[0][1], 'G_path': original_graph_path, 'label_string' : r'$G_{SBM}$'}
