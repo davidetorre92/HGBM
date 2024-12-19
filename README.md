@@ -100,7 +100,7 @@ The user cannot set ```avg_deg``` and ```alpha```, and ```graph_path``` and ```c
 The main entry point for running simulations is the `run_simulations.py` script. It allows users to specify various parameters for simulations and manage output logs effectively.
 
 ```bash
-python run_simulations.py [options]
+python run_simulations.py
 ```
 ## License
 
